@@ -1,0 +1,188 @@
+{% extends "base.html" %}
+
+{% block title %}Event #{{ event.id }} Telemetry — SentinelSOC{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4 pb-2 border-bottom border-secondary-subtle">
+    <div class="d-flex align-items-center gap-3">
+        <a href="/events" class="btn btn-sm btn-outline-secondary">&larr; Back to Events</a>
+        <div>
+            <h3 class="soc-page-title mb-0">
+                Security Event <span class="font-monospace text-info">#{{ event.id }}</span>
+            </h3>
+            <span class="text-secondary small font-monospace">{{ event.timestamp.strftime('%Y-%m-%d %H:%M:%S UTC') if event.timestamp else 'N/A' }}</span>
+        </div>
+    </div>
+    <div class="d-flex align-items-center gap-2">
+        <span class="badge soc-badge-{{ event.severity.lower() }} px-3 py-2 fs-6">
+            {{ event.severity }} SEVERITY
+        </span>
+        <span class="badge bg-secondary-subtle text-light px-3 py-2 fs-6">
+            Risk Score: <strong class="text-warning">{{ event.risk_score }}</strong> / 100
+        </span>
+    </div>
+</div>
+
+<div class="row g-4">
+    <!-- Left Column: Primary Forensic Analysis -->
+    <div class="col-lg-8">
+        <!-- 1. Event Telemetry Details -->
+        <div class="card soc-card mb-4">
+            <div class="card-header soc-card-header">
+                <span class="card-header-title">📋 Core Event Metadata</span>
+            </div>
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label class="soc-meta-label">EVENT TYPE</label>
+                        <div><span class="badge soc-event-type-badge fs-6">{{ event.event_type }}</span></div>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="soc-meta-label">TARGET USERNAME</label>
+                        <div class="fs-6 fw-bold text-light">{{ event.username or '[Unspecified User]' }}</div>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="soc-meta-label">SOURCE IP ADDRESS</label>
+                        <div>
+                            <span class="badge font-monospace soc-ip-badge fs-6">{{ event.source_ip }}</span>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="soc-meta-label">DESTINATION / TARGET</label>
+                        <div class="text-secondary font-monospace">{{ event.destination_ip or 'Localhost (Auth Service)' }}</div>
+                    </div>
+                    <div class="col-12">
+                        <label class="soc-meta-label">LOG MESSAGE / PAYLOAD</label>
+                        <div class="soc-code-box">{{ event.message or 'No additional log details recorded.' }}</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 2. Section 9: Detection Reason & Risk Score Breakdown -->
+        <div class="card soc-card mb-4 border-start border-4 {% if event.risk_score >= 80 %}border-danger{% elif event.risk_score >= 60 %}border-warning{% elif event.risk_score >= 30 %}border-info{% else %}border-secondary{% endif %}">
+            <div class="card-header soc-card-header d-flex justify-content-between align-items-center">
+                <span class="card-header-title">🛡️ Threat Engine Detection Reason & Scoring Rationale</span>
+                <span class="badge soc-badge-{{ event.severity.lower() }}">{{ event.detected_threat or 'BASELINE RULE' }}</span>
+            </div>
+            <div class="card-body">
+                <h5 class="text-light mb-2">Detection Analysis</h5>
+                <p class="text-secondary fs-6 mb-4">
+                    {% if event.detected_threat %}
+                        Event correlated with threat pattern <strong>{{ event.detected_threat.replace('_', ' ').title() }}</strong>.
+                        Originating source IP <code>{{ event.source_ip }}</code> exceeded automated heuristic safety thresholds.
+                    {% else %}
+                        Standard telemetry activity. Event analyzed against baseline rules; no heuristic threshold breaches triggered.
+                    {% endif %}
+                </p>
+
+                <h6 class="text-uppercase text-secondary small fw-bold mb-2">Risk Score Breakdown ({{ event.risk_score }} / 100)</h6>
+                <div class="progress soc-risk-large-bar mb-3" style="height: 12px;">
+                    <div class="progress-bar {% if event.risk_score >= 80 %}bg-danger{% elif event.risk_score >= 60 %}bg-warning{% elif event.risk_score >= 30 %}bg-info{% else %}bg-secondary{% endif %}" 
+                         style="width: {{ event.risk_score }}%;"></div>
+                </div>
+                
+                <div class="row g-2 text-secondary small">
+                    <div class="col-md-3">
+                        <span class="d-block text-muted">Base Event Weight</span>
+                        <strong class="text-light">
+                            {% if event.event_type in ('privilege_escalation', 'account_locked') %}High (+45 to +75)
+                            {% elif 'failed' in event.event_type or 'denied' in event.event_type %}Medium (+20 to +25)
+                            {% else %}Low (+0 to +5){% endif %}
+                        </strong>
+                    </div>
+                    <div class="col-md-3">
+                        <span class="d-block text-muted">Frequency Multiplier</span>
+                        <strong class="text-light">
+                            {% if event.risk_score >= 60 %}Elevated (Aggressive){% else %}Standard{% endif %}
+                        </strong>
+                    </div>
+                    <div class="col-md-3">
+                        <span class="d-block text-muted">Off-Hours Risk</span>
+                        <strong class="text-light">
+                            {% if event.timestamp and (8 > event.timestamp.hour or event.timestamp.hour >= 20) %}Active (+10 to +20){% else %}Normal Shift{% endif %}
+                        </strong>
+                    </div>
+                    <div class="col-md-3">
+                        <span class="d-block text-muted">Post-Crack Breach</span>
+                        <strong class="text-light">
+                            {% if event.detected_threat == 'SUCCESSFUL_LOGIN_AFTER_FAILURES' %}Triggered (+25){% else %}None{% endif %}
+                        </strong>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 3. Section 9: Recommended Response & Playbook -->
+        <div class="card soc-card mb-4">
+            <div class="card-header soc-card-header">
+                <span class="card-header-title">🚨 Recommended SOC Remediation Response</span>
+            </div>
+            <div class="card-body">
+                <div class="soc-recommendation-box p-3 rounded">
+                    <h6 class="text-warning fw-bold mb-2">⚡ Actionable Security Playbook:</h6>
+                    <p class="mb-2 text-light">
+                        {{ event.recommendation or 'No automated action required. Continue routine monitoring.' }}
+                    </p>
+                    <ul class="text-secondary small mb-0 ps-3">
+                        <li>Cross-reference IP <code>{{ event.source_ip }}</code> against external threat intelligence feeds (AbuseIPDB, VirusTotal).</li>
+                        <li>If repeated brute force or unauthorized attempts occur, add firewall drop rule for <code>{{ event.source_ip }}</code>.</li>
+                        {% if event.username %}
+                        <li>Verify with user <strong>{{ event.username }}</strong> if recent authentication attempts were authorized.</li>
+                        {% endif %}
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Right Column: Correlated Alerts & IP History -->
+    <div class="col-lg-4">
+        <!-- Related Alerts -->
+        {% if details and details.related_alerts %}
+        <div class="card soc-card mb-4">
+            <div class="card-header soc-card-header">
+                <span class="card-header-title">🔥 Triggered Alerts ({{ details.related_alerts|length }})</span>
+            </div>
+            <div class="list-group list-group-flush soc-list-group">
+                {% for alert in details.related_alerts %}
+                <div class="list-group-item soc-list-item p-3">
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                        <span class="badge soc-badge-{{ alert.severity.lower() }}">{{ alert.severity }}</span>
+                        <span class="small text-secondary">{{ alert.detection_timestamp[:19].replace('T', ' ') if alert.detection_timestamp else '' }}</span>
+                    </div>
+                    <div class="fw-bold text-light mb-1">{{ alert.threat_type.replace('_', ' ').title() }}</div>
+                    <p class="small text-secondary mb-2">{{ alert.reason }}</p>
+                    <a href="/alert/{{ alert.id }}" class="btn btn-xs btn-outline-info w-100">Open Alert Triage &rarr;</a>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Correlated Events from same IP -->
+        <div class="card soc-card">
+            <div class="card-header soc-card-header">
+                <span class="card-header-title">🌐 Activity From Same IP ({{ event.source_ip }})</span>
+            </div>
+            <div class="list-group list-group-flush soc-list-group">
+                {% if details and details.correlated_events %}
+                    {% for cor_evt in details.correlated_events %}
+                    <a href="/event/{{ cor_evt.id }}" class="list-group-item list-group-item-action soc-list-item p-2">
+                        <div class="d-flex justify-content-between small">
+                            <span class="badge soc-event-type-badge">{{ cor_evt.event_type }}</span>
+                            <span class="text-secondary font-monospace">{{ cor_evt.timestamp[:19].replace('T', ' ') if cor_evt.timestamp else '' }}</span>
+                        </div>
+                        <div class="small text-light mt-1">
+                            User: <strong>{{ cor_evt.username or 'N/A' }}</strong> &bull; Score: <span class="{% if cor_evt.risk_score >= 60 %}text-danger{% else %}text-secondary{% endif %}">{{ cor_evt.risk_score }}</span>
+                        </div>
+                    </a>
+                    {% endfor %}
+                {% else %}
+                    <div class="p-3 text-secondary small text-center">No other events recorded from this IP.</div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

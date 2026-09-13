@@ -1,0 +1,474 @@
+{% extends "base.html" %}
+
+{% block title %}SOC Dashboard — SentinelSOC{% endblock %}
+
+{% block content %}
+<!-- Dashboard Header -->
+<div class="d-flex justify-content-between align-items-center mb-4 pb-2 border-bottom border-secondary-subtle">
+    <div>
+        <h2 class="soc-page-title mb-1">
+            <span class="soc-title-icon">⚡</span> Security Operations Center Overview
+        </h2>
+        <p class="text-secondary small mb-0">
+            Real-time threat detection, heuristic pattern analysis, and automated risk scoring
+        </p>
+    </div>
+    <div class="d-flex align-items-center gap-3">
+        <div class="soc-live-indicator small">
+            <span class="pulse-dot-green"></span> Polling Active (<span id="refreshCountdown">6s</span>)
+        </div>
+        <button class="btn btn-sm btn-outline-secondary soc-refresh-btn" onclick="updateDashboard(true)" title="Force Refresh">
+            ↻ Refresh
+        </button>
+    </div>
+</div>
+
+<!-- Section 7: Top KPI Cards -->
+<div class="row g-3 mb-4">
+    <!-- 1. Total Events -->
+    <div class="col-xl-3 col-md-6">
+        <div class="card soc-card kpi-card kpi-total h-100">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <span class="kpi-label">TOTAL EVENTS</span>
+                    <span class="kpi-icon">📊</span>
+                </div>
+                <div class="kpi-value" id="kpiTotalEvents">{{ stats.total_events }}</div>
+                <div class="kpi-meta text-secondary">
+                    <span>24h Ingested: <strong id="kpiEvents24h">{{ stats.events_24h }}</strong></span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 2. Active Alerts -->
+    <div class="col-xl-3 col-md-6">
+        <div class="card soc-card kpi-card kpi-alerts h-100">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <span class="kpi-label">ACTIVE ALERTS</span>
+                    <span class="kpi-icon">🚨</span>
+                </div>
+                <div class="kpi-value text-warning" id="kpiActiveAlerts">{{ stats.total_alerts }}</div>
+                <div class="kpi-meta text-secondary">
+                    <span>24h Alerts: <strong id="kpiAlerts24h">{{ stats.alerts_24h }}</strong></span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 3. Critical Threats -->
+    <div class="col-xl-3 col-md-6">
+        <div class="card soc-card kpi-card kpi-critical h-100">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <span class="kpi-label">CRITICAL THREATS</span>
+                    <span class="kpi-icon">🔥</span>
+                </div>
+                <div class="kpi-value text-danger" id="kpiCriticalThreats">{{ stats.critical_threats }}</div>
+                <div class="kpi-meta text-secondary">
+                    <span>Elevated: <strong id="kpiHighThreats">{{ stats.high_threats }} High</strong></span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 4. High Risk Events -->
+    <div class="col-xl-3 col-md-6">
+        <div class="card soc-card kpi-card kpi-risk h-100">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <span class="kpi-label">HIGH RISK EVENTS</span>
+                    <span class="kpi-icon">⚠️</span>
+                </div>
+                <div class="kpi-value text-info" id="kpiHighRiskEvents">{{ stats.high_risk_events }}</div>
+                <div class="kpi-meta text-secondary">
+                    <span>Avg Score: <strong id="kpiAvgRisk">{{ stats.avg_risk_score }}</strong> / 100</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Section 7: 4 Visual SOC Charts -->
+<div class="row g-3 mb-4">
+    <!-- Chart 1: Events Over Time (Timeline) -->
+    <div class="col-lg-8">
+        <div class="card soc-card h-100">
+            <div class="card-header soc-card-header d-flex justify-content-between align-items-center">
+                <span class="card-header-title">📈 Event Frequency Over Time (24h)</span>
+                <span class="badge bg-secondary-subtle text-secondary small">Hourly Aggregation</span>
+            </div>
+            <div class="card-body">
+                <div class="chart-wrapper" style="height: 250px; position: relative;">
+                    <canvas id="chartTimeline"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Chart 2: Threat Types Distribution -->
+    <div class="col-lg-4">
+        <div class="card soc-card h-100">
+            <div class="card-header soc-card-header d-flex justify-content-between align-items-center">
+                <span class="card-header-title">🎯 Threat Pattern Distribution</span>
+                <span class="badge bg-secondary-subtle text-secondary small">Active Rules</span>
+            </div>
+            <div class="card-body d-flex align-items-center justify-content-center">
+                <div class="chart-wrapper" style="height: 240px; width: 100%; position: relative;">
+                    <canvas id="chartThreatTypes"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Chart 3: Severity Distribution -->
+    <div class="col-lg-6">
+        <div class="card soc-card h-100">
+            <div class="card-header soc-card-header d-flex justify-content-between align-items-center">
+                <span class="card-header-title">📊 Threat Severity Breakdown</span>
+                <span class="badge bg-secondary-subtle text-secondary small">Risk Level</span>
+            </div>
+            <div class="card-body">
+                <div class="chart-wrapper" style="height: 220px; position: relative;">
+                    <canvas id="chartSeverity"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Chart 4: Top Suspicious IPs -->
+    <div class="col-lg-6">
+        <div class="card soc-card h-100">
+            <div class="card-header soc-card-header d-flex justify-content-between align-items-center">
+                <span class="card-header-title">🌐 Top Suspicious Source IPs</span>
+                <span class="badge bg-secondary-subtle text-secondary small">By Risk & Frequency</span>
+            </div>
+            <div class="card-body">
+                <div class="chart-wrapper" style="height: 220px; position: relative;">
+                    <canvas id="chartTopIPs"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Section 7: Recent Alerts Table -->
+<div class="card soc-card mb-4">
+    <div class="card-header soc-card-header d-flex justify-content-between align-items-center">
+        <div class="d-flex align-items-center gap-2">
+            <span class="card-header-title">🚨 Recent Security Alerts & Triage</span>
+            <span class="badge bg-danger-subtle text-danger" id="recentAlertsCount">{{ recent_alerts|length }} active</span>
+        </div>
+        <a href="/alerts" class="btn btn-sm btn-outline-secondary">View All Alerts &rarr;</a>
+    </div>
+    <div class="table-responsive">
+        <table class="table table-hover align-middle soc-table mb-0" id="recentAlertsTable">
+            <thead>
+                <tr>
+                    <th scope="col">Time</th>
+                    <th scope="col">Threat</th>
+                    <th scope="col">Source IP</th>
+                    <th scope="col">User</th>
+                    <th scope="col">Severity</th>
+                    <th scope="col">Risk Score</th>
+                    <th scope="col">Status</th>
+                    <th scope="col" class="text-end">Action</th>
+                </tr>
+            </thead>
+            <tbody id="recentAlertsBody">
+                {% for alert in recent_alerts %}
+                <tr>
+                    <td class="text-nowrap font-monospace text-secondary small">
+                        {{ alert.detection_timestamp[:19].replace('T', ' ') if alert.detection_timestamp else '-' }}
+                    </td>
+                    <td>
+                        <strong class="text-light">{{ alert.threat_type.replace('_', ' ').title() }}</strong>
+                    </td>
+                    <td>
+                        <span class="badge font-monospace soc-ip-badge">{{ alert.source_ip }}</span>
+                    </td>
+                    <td class="text-secondary small">
+                        {{ alert.affected_users or 'N/A' }}
+                    </td>
+                    <td>
+                        <span class="badge soc-badge-{{ alert.severity.lower() }}">{{ alert.severity }}</span>
+                    </td>
+                    <td>
+                        <div class="d-flex align-items-center gap-2">
+                            <span class="fw-bold {% if alert.risk_score >= 80 %}text-danger{% elif alert.risk_score >= 60 %}text-warning{% elif alert.risk_score >= 30 %}text-info{% else %}text-secondary{% endif %}">
+                                {{ alert.risk_score }}
+                            </span>
+                            <div class="progress soc-risk-mini-bar" style="width: 50px; height: 6px;">
+                                <div class="progress-bar {% if alert.risk_score >= 80 %}bg-danger{% elif alert.risk_score >= 60 %}bg-warning{% elif alert.risk_score >= 30 %}bg-info{% else %}bg-secondary{% endif %}" 
+                                     style="width: {{ alert.risk_score }}%;"></div>
+                            </div>
+                        </div>
+                    </td>
+                    <td>
+                        <span class="badge {% if alert.status == 'open' %}bg-danger-subtle text-danger{% elif alert.status == 'investigating' %}bg-warning-subtle text-warning{% else %}bg-success-subtle text-success{% endif %}">
+                            {{ alert.status|upper }}
+                        </span>
+                    </td>
+                    <td class="text-end">
+                        <a href="/alert/{{ alert.id }}" class="btn btn-sm soc-btn-inspect">Inspect</a>
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="8" class="text-center text-secondary py-4">
+                        No active security alerts detected. System operating normally.
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Chart instances storage to avoid recreation memory leaks
+    let chartTimeline = null;
+    let chartThreatTypes = null;
+    let chartSeverity = null;
+    let chartTopIPs = null;
+    
+    let refreshTimer = 6;
+    let isUpdating = false;
+
+    // Initialize Chart.js with Cyber SOC Dark Theme
+    function initCharts() {
+        // Chart defaults
+        Chart.defaults.color = '#94a3b8';
+        Chart.defaults.borderColor = '#1e293b';
+        Chart.defaults.font.family = "'Inter', sans-serif";
+
+        // 1. Timeline Chart
+        const ctxTimeline = document.getElementById('chartTimeline').getContext('2d');
+        chartTimeline = new Chart(ctxTimeline, {
+            type: 'line',
+            data: { labels: [], datasets: [{ label: 'Events', data: [], borderColor: '#00f0ff', backgroundColor: 'rgba(0, 240, 255, 0.08)', tension: 0.35, fill: true, borderWidth: 2 }] },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false }, tooltip: { mode: 'index', intersect: false } },
+                scales: { y: { beginAtZero: true, grid: { color: '#1e293b' } }, x: { grid: { display: false } } }
+            }
+        });
+
+        // 2. Threat Types Doughnut
+        const ctxThreat = document.getElementById('chartThreatTypes').getContext('2d');
+        chartThreatTypes = new Chart(ctxThreat, {
+            type: 'doughnut',
+            data: {
+                labels: [],
+                datasets: [{
+                    data: [],
+                    backgroundColor: ['#ef4444', '#f59e0b', '#3b82f6', '#8b5cf6', '#06b6d4', '#10b981'],
+                    borderColor: '#131b2e',
+                    borderWidth: 2
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { position: 'right', labels: { boxWidth: 12, font: { size: 11 } } }
+                },
+                cutout: '65%'
+            }
+        });
+
+        // 3. Severity Bar Chart
+        const ctxSeverity = document.getElementById('chartSeverity').getContext('2d');
+        chartSeverity = new Chart(ctxSeverity, {
+            type: 'bar',
+            data: {
+                labels: ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'],
+                datasets: [{
+                    label: 'Alerts',
+                    data: [0, 0, 0, 0],
+                    backgroundColor: ['#ef4444', '#f59e0b', '#06b6d4', '#64748b'],
+                    borderRadius: 4
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: { y: { beginAtZero: true, grid: { color: '#1e293b' } }, x: { grid: { display: false } } }
+            }
+        });
+
+        // 4. Top IPs Horizontal Bar Chart
+        const ctxTopIPs = document.getElementById('chartTopIPs').getContext('2d');
+        chartTopIPs = new Chart(ctxTopIPs, {
+            type: 'bar',
+            data: {
+                labels: [],
+                datasets: [{
+                    label: 'Risk Score',
+                    data: [],
+                    backgroundColor: '#ef4444',
+                    borderRadius: 4
+                }]
+            },
+            options: {
+                indexAxis: 'y',
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: { x: { max: 100, beginAtZero: true, grid: { color: '#1e293b' } }, y: { grid: { display: false } } }
+            }
+        });
+    }
+
+    // Update charts and KPIs via REST endpoints (Section 8)
+    function updateDashboard(force = false) {
+        if (isUpdating && !force) return;
+        isUpdating = true;
+
+        // Fetch Stats KPI
+        fetch('/api/stats')
+            .then(res => res.json())
+            .then(data => {
+                document.getElementById('kpiTotalEvents').textContent = data.total_events;
+                document.getElementById('kpiEvents24h').textContent = data.events_24h;
+                document.getElementById('kpiActiveAlerts').textContent = data.total_alerts;
+                document.getElementById('kpiAlerts24h').textContent = data.alerts_24h;
+                document.getElementById('kpiCriticalThreats').textContent = data.critical_threats;
+                document.getElementById('kpiHighThreats').textContent = data.high_threats + ' High';
+                document.getElementById('kpiHighRiskEvents').textContent = data.high_risk_events;
+                document.getElementById('kpiAvgRisk').textContent = data.avg_risk_score;
+            })
+            .catch(err => console.error('Stats fetch error:', err));
+
+        // Fetch Timeline Chart Data
+        fetch('/api/timeline?hours=24')
+            .then(res => res.json())
+            .then(data => {
+                if (chartTimeline) {
+                    chartTimeline.data.labels = Object.keys(data);
+                    chartTimeline.data.datasets[0].data = Object.values(data);
+                    chartTimeline.update('none');
+                }
+            })
+            .catch(err => console.error('Timeline fetch error:', err));
+
+        // Fetch Threat Distribution
+        fetch('/api/threat-distribution')
+            .then(res => res.json())
+            .then(data => {
+                if (chartThreatTypes) {
+                    chartThreatTypes.data.labels = Object.keys(data);
+                    chartThreatTypes.data.datasets[0].data = Object.values(data);
+                    chartThreatTypes.update('none');
+                }
+            })
+            .catch(err => console.error('Threat dist fetch error:', err));
+
+        // Fetch Severity Distribution
+        fetch('/api/severity-distribution')
+            .then(res => res.json())
+            .then(data => {
+                if (chartSeverity) {
+                    chartSeverity.data.datasets[0].data = [
+                        data.CRITICAL || 0,
+                        data.HIGH || 0,
+                        data.MEDIUM || 0,
+                        data.LOW || 0
+                    ];
+                    chartSeverity.update('none');
+                }
+            })
+            .catch(err => console.error('Severity dist fetch error:', err));
+
+        // Fetch Top IPs
+        fetch('/api/top-ips?limit=5')
+            .then(res => res.json())
+            .then(data => {
+                if (chartTopIPs) {
+                    chartTopIPs.data.labels = data.map(item => item.ip);
+                    chartTopIPs.data.datasets[0].data = data.map(item => item.max_risk_score);
+                    chartTopIPs.update('none');
+                }
+            })
+            .catch(err => console.error('Top IPs fetch error:', err));
+
+        // Fetch Recent Alerts Table
+        fetch('/api/alerts?limit=10')
+            .then(res => res.json())
+            .then(alerts => {
+                renderAlertsTable(alerts);
+                isUpdating = false;
+            })
+            .catch(err => {
+                console.error('Alerts table fetch error:', err);
+                isUpdating = false;
+            });
+    }
+
+    function renderAlertsTable(alerts) {
+        const tbody = document.getElementById('recentAlertsBody');
+        const countBadge = document.getElementById('recentAlertsCount');
+        if (countBadge) countBadge.textContent = `${alerts.length} active`;
+        
+        if (!tbody) return;
+        if (alerts.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="8" class="text-center text-secondary py-4">No active security alerts detected. System operating normally.</td></tr>`;
+            return;
+        }
+
+        let html = '';
+        alerts.forEach(alert => {
+            const timeStr = alert.detection_timestamp ? alert.detection_timestamp.slice(0, 19).replace('T', ' ') : '-';
+            const threatTitle = alert.threat_type.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
+            const scoreColor = alert.risk_score >= 80 ? 'text-danger' : (alert.risk_score >= 60 ? 'text-warning' : (alert.risk_score >= 30 ? 'text-info' : 'text-secondary'));
+            const barColor = alert.risk_score >= 80 ? 'bg-danger' : (alert.risk_score >= 60 ? 'bg-warning' : (alert.risk_score >= 30 ? 'bg-info' : 'bg-secondary'));
+            const statusClass = alert.status === 'open' ? 'bg-danger-subtle text-danger' : (alert.status === 'investigating' ? 'bg-warning-subtle text-warning' : 'bg-success-subtle text-success');
+
+            html += `
+                <tr>
+                    <td class="text-nowrap font-monospace text-secondary small">${timeStr}</td>
+                    <td><strong class="text-light">${threatTitle}</strong></td>
+                    <td><span class="badge font-monospace soc-ip-badge">${alert.source_ip || 'unknown'}</span></td>
+                    <td class="text-secondary small">${alert.affected_users || 'N/A'}</td>
+                    <td><span class="badge soc-badge-${alert.severity.toLowerCase()}">${alert.severity}</span></td>
+                    <td>
+                        <div class="d-flex align-items-center gap-2">
+                            <span class="fw-bold ${scoreColor}">${alert.risk_score}</span>
+                            <div class="progress soc-risk-mini-bar" style="width: 50px; height: 6px;">
+                                <div class="progress-bar ${barColor}" style="width: ${alert.risk_score}%;"></div>
+                            </div>
+                        </div>
+                    </td>
+                    <td><span class="badge ${statusClass}">${alert.status.toUpperCase()}</span></td>
+                    <td class="text-end">
+                        <a href="/alert/${alert.id}" class="btn btn-sm soc-btn-inspect">Inspect</a>
+                    </td>
+                </tr>
+            `;
+        });
+        tbody.innerHTML = html;
+    }
+
+    // Auto-refresh timer loop (5-6 seconds polling)
+    document.addEventListener('DOMContentLoaded', () => {
+        initCharts();
+        updateDashboard();
+
+        setInterval(() => {
+            refreshTimer -= 1;
+            const cdEl = document.getElementById('refreshCountdown');
+            if (cdEl) cdEl.textContent = `${refreshTimer}s`;
+
+            if (refreshTimer <= 0) {
+                refreshTimer = 6;
+                updateDashboard();
+            }
+        }, 1000);
+    });
+</script>
+{% endblock %}

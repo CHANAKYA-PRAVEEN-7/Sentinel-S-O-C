@@ -1,0 +1,214 @@
+{% extends "base.html" %}
+
+{% block title %}Events Explorer — SentinelSOC{% endblock %}
+
+{% block content %}
+<!-- Page Header -->
+<div class="d-flex justify-content-between align-items-center mb-4 pb-2 border-bottom border-secondary-subtle">
+    <div>
+        <h2 class="soc-page-title mb-1">
+            <span class="soc-title-icon">📁</span> Security Events Explorer
+        </h2>
+        <p class="text-secondary small mb-0">
+            Forensic search, behavioral filters, and threat correlation across parsed authentication logs
+        </p>
+    </div>
+    <div>
+        <span class="badge bg-secondary-subtle text-light px-3 py-2">
+            Total Records: <strong>{{ total }}</strong>
+        </span>
+    </div>
+</div>
+
+<!-- Section 9: Advanced Filter Toolbar -->
+<div class="card soc-card mb-4">
+    <div class="card-header soc-card-header">
+        <span class="card-header-title">🔍 Forensic Search & Multi-Field Filters</span>
+    </div>
+    <div class="card-body">
+        <form method="GET" action="/events" class="row g-3">
+            <!-- Search by IP -->
+            <div class="col-md-3">
+                <label for="filterIp" class="form-label soc-form-label">Source IP Address</label>
+                <input type="text" class="form-control soc-input font-monospace" id="filterIp" name="ip" 
+                       placeholder="e.g. 192.168.1.100" value="{{ ip }}">
+            </div>
+
+            <!-- Search by Username -->
+            <div class="col-md-3">
+                <label for="filterUser" class="form-label soc-form-label">Target Username</label>
+                <input type="text" class="form-control soc-input" id="filterUser" name="username" 
+                       placeholder="e.g. admin or john" value="{{ username }}">
+            </div>
+
+            <!-- Filter by Severity -->
+            <div class="col-md-2">
+                <label for="filterSeverity" class="form-label soc-form-label">Severity Level</label>
+                <select class="form-select soc-select" id="filterSeverity" name="severity">
+                    <option value="" {% if not severity %}selected{% endif %}>All Severities</option>
+                    <option value="CRITICAL" {% if severity == 'CRITICAL' %}selected{% endif %}>CRITICAL (80-100)</option>
+                    <option value="HIGH" {% if severity == 'HIGH' %}selected{% endif %}>HIGH (60-79)</option>
+                    <option value="MEDIUM" {% if severity == 'MEDIUM' %}selected{% endif %}>MEDIUM (30-59)</option>
+                    <option value="LOW" {% if severity == 'LOW' %}selected{% endif %}>LOW (0-29)</option>
+                </select>
+            </div>
+
+            <!-- Filter by Threat Type -->
+            <div class="col-md-2">
+                <label for="filterThreat" class="form-label soc-form-label">Threat Pattern</label>
+                <select class="form-select soc-select" id="filterThreat" name="threat_type">
+                    <option value="" {% if not threat_type %}selected{% endif %}>All Patterns</option>
+                    {% for t in threat_types %}
+                    <option value="{{ t }}" {% if threat_type == t %}selected{% endif %}>{{ t.replace('_', ' ').title() }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <!-- Sort By -->
+            <div class="col-md-2">
+                <label for="sortBy" class="form-label soc-form-label">Sort Order</label>
+                <select class="form-select soc-select" id="sortBy" name="sort_by">
+                    <option value="risk_score" {% if sort_by == 'risk_score' %}selected{% endif %}>Risk Score</option>
+                    <option value="timestamp" {% if sort_by == 'timestamp' %}selected{% endif %}>Timestamp</option>
+                    <option value="event_type" {% if sort_by == 'event_type' %}selected{% endif %}>Event Type</option>
+                </select>
+            </div>
+
+            <!-- Date Range Filters -->
+            <div class="col-md-3">
+                <label for="startDate" class="form-label soc-form-label">Start Date</label>
+                <input type="date" class="form-control soc-input" id="startDate" name="start_date" value="{{ start_date }}">
+            </div>
+
+            <div class="col-md-3">
+                <label for="endDate" class="form-label soc-form-label">End Date</label>
+                <input type="date" class="form-control soc-input" id="endDate" name="end_date" value="{{ end_date }}">
+            </div>
+
+            <div class="col-md-2">
+                <label for="sortDir" class="form-label soc-form-label">Direction</label>
+                <select class="form-select soc-select" id="sortDir" name="sort_dir">
+                    <option value="desc" {% if sort_dir == 'desc' %}selected{% endif %}>Descending</option>
+                    <option value="asc" {% if sort_dir == 'asc' %}selected{% endif %}>Ascending</option>
+                </select>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="col-md-4 d-flex align-items-end gap-2">
+                <button type="submit" class="btn btn-primary soc-btn-primary flex-grow-1">
+                    🔍 Apply Filters
+                </button>
+                <a href="/events" class="btn btn-outline-secondary">
+                    Reset
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Events Table -->
+<div class="card soc-card mb-4">
+    <div class="card-header soc-card-header d-flex justify-content-between align-items-center">
+        <span class="card-header-title">📋 Ingested Log Events (Showing {{ events|length }} of {{ total }})</span>
+        <span class="small text-secondary">Page {{ page }} of {{ total_pages }}</span>
+    </div>
+    <div class="table-responsive">
+        <table class="table table-hover align-middle soc-table mb-0">
+            <thead>
+                <tr>
+                    <th scope="col">Timestamp</th>
+                    <th scope="col">Event Type</th>
+                    <th scope="col">Username</th>
+                    <th scope="col">Source IP</th>
+                    <th scope="col">Detected Threat</th>
+                    <th scope="col">Risk Score</th>
+                    <th scope="col">Severity</th>
+                    <th scope="col" class="text-end">Details</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for event in events %}
+                <tr>
+                    <td class="text-nowrap font-monospace text-secondary small">
+                        {{ event.timestamp.strftime('%Y-%m-%d %H:%M:%S') if event.timestamp else '-' }}
+                    </td>
+                    <td>
+                        <span class="badge soc-event-type-badge">{{ event.event_type }}</span>
+                    </td>
+                    <td>
+                        {% if event.username %}
+                            <span class="fw-medium text-light">{{ event.username }}</span>
+                        {% else %}
+                            <span class="text-muted small">&lt;none&gt;</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <span class="badge font-monospace soc-ip-badge">{{ event.source_ip }}</span>
+                    </td>
+                    <td>
+                        {% if event.detected_threat %}
+                            <strong class="text-warning small">{{ event.detected_threat.replace('_', ' ').title() }}</strong>
+                        {% else %}
+                            <span class="text-secondary small">Normal telemetry</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <div class="d-flex align-items-center gap-2">
+                            <span class="fw-bold {% if event.risk_score >= 80 %}text-danger{% elif event.risk_score >= 60 %}text-warning{% elif event.risk_score >= 30 %}text-info{% else %}text-secondary{% endif %}">
+                                {{ event.risk_score }}
+                            </span>
+                            <div class="progress soc-risk-mini-bar" style="width: 45px; height: 5px;">
+                                <div class="progress-bar {% if event.risk_score >= 80 %}bg-danger{% elif event.risk_score >= 60 %}bg-warning{% elif event.risk_score >= 30 %}bg-info{% else %}bg-secondary{% endif %}" 
+                                     style="width: {{ event.risk_score }}%;"></div>
+                            </div>
+                        </div>
+                    </td>
+                    <td>
+                        <span class="badge soc-badge-{{ event.severity.lower() }}">{{ event.severity }}</span>
+                    </td>
+                    <td class="text-end">
+                        <a href="/event/{{ event.id }}" class="btn btn-sm soc-btn-inspect">Inspect</a>
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="8" class="text-center text-secondary py-5">
+                        No security events match the current filter criteria. Try adjusting search terms.
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Pagination -->
+{% if total_pages > 1 %}
+<nav aria-label="Events pagination" class="d-flex justify-content-center">
+    <ul class="pagination soc-pagination">
+        {% if page > 1 %}
+        <li class="page-item">
+            <a class="page-link" href="?page=1&amp;ip={{ ip }}&amp;username={{ username }}&amp;severity={{ severity }}&amp;threat_type={{ threat_type }}&amp;start_date={{ start_date }}&amp;end_date={{ end_date }}&amp;sort_by={{ sort_by }}&amp;sort_dir={{ sort_dir }}">&laquo; First</a>
+        </li>
+        <li class="page-item">
+            <a class="page-link" href="?page={{ page - 1 }}&amp;ip={{ ip }}&amp;username={{ username }}&amp;severity={{ severity }}&amp;threat_type={{ threat_type }}&amp;start_date={{ start_date }}&amp;end_date={{ end_date }}&amp;sort_by={{ sort_by }}&amp;sort_dir={{ sort_dir }}">&lsaquo; Prev</a>
+        </li>
+        {% endif %}
+
+        <li class="page-item active">
+            <span class="page-link">Page {{ page }} of {{ total_pages }}</span>
+        </li>
+
+        {% if (total_pages > page) %}
+        <li class="page-item">
+            <a class="page-link" href="?page={{ page + 1 }}&amp;ip={{ ip }}&amp;username={{ username }}&amp;severity={{ severity }}&amp;threat_type={{ threat_type }}&amp;start_date={{ start_date }}&amp;end_date={{ end_date }}&amp;sort_by={{ sort_by }}&amp;sort_dir={{ sort_dir }}">Next &rsaquo;</a>
+        </li>
+        <li class="page-item">
+            <a class="page-link" href="?page={{ total_pages }}&amp;ip={{ ip }}&amp;username={{ username }}&amp;severity={{ severity }}&amp;threat_type={{ threat_type }}&amp;start_date={{ start_date }}&amp;end_date={{ end_date }}&amp;sort_by={{ sort_by }}&amp;sort_dir={{ sort_dir }}">Last &raquo;</a>
+        </li>
+        {% endif %}
+    </ul>
+</nav>
+{% endif %}
+
+{% endblock %}

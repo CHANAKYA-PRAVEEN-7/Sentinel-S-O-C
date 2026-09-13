@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+
+{% block title %}Search Telemetry — SentinelSOC{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4 pb-2 border-bottom border-secondary-subtle">
+    <div>
+        <h2 class="soc-page-title mb-1">
+            <span class="soc-title-icon">🔍</span> Forensic Search
+        </h2>
+        <p class="text-secondary small mb-0">
+            Query across security logs by IP address, targeted username, message content, or detected threat
+        </p>
+    </div>
+</div>
+
+<div class="card soc-card mb-4">
+    <div class="card-body">
+        <form method="GET" action="/search" class="row g-3">
+            <div class="col-md-9">
+                <input type="text" class="form-control soc-input fs-5" name="q" 
+                       placeholder="Enter IP (e.g. 192.168.1.100), username (e.g. admin), or threat..." value="{{ query }}">
+            </div>
+            <div class="col-md-3">
+                <button type="submit" class="btn btn-primary soc-btn-primary w-100 fs-5">
+                    Search Telemetry
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+{% if query %}
+<div class="card soc-card">
+    <div class="card-header soc-card-header d-flex justify-content-between align-items-center">
+        <span class="card-header-title">Search Results for: "<code>{{ query }}</code>"</span>
+        <span class="badge bg-secondary-subtle text-light">{{ total }} record(s) found</span>
+    </div>
+    <div class="table-responsive">
+        <table class="table table-hover align-middle soc-table mb-0">
+            <thead>
+                <tr>
+                    <th scope="col">Timestamp</th>
+                    <th scope="col">Event Type</th>
+                    <th scope="col">Username</th>
+                    <th scope="col">Source IP</th>
+                    <th scope="col">Detected Threat</th>
+                    <th scope="col">Risk Score</th>
+                    <th scope="col">Severity</th>
+                    <th scope="col" class="text-end">Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for event in events %}
+                <tr>
+                    <td class="font-monospace small text-secondary">
+                        {{ event.timestamp.strftime('%Y-%m-%d %H:%M:%S') if event.timestamp else '-' }}
+                    </td>
+                    <td><span class="badge soc-event-type-badge">{{ event.event_type }}</span></td>
+                    <td class="text-light">{{ event.username or '[None]' }}</td>
+                    <td><span class="badge font-monospace soc-ip-badge">{{ event.source_ip }}</span></td>
+                    <td><strong class="text-warning small">{{ event.detected_threat.replace('_', ' ').title() if event.detected_threat else 'Normal' }}</strong></td>
+                    <td><span class="fw-bold text-light">{{ event.risk_score }}</span></td>
+                    <td><span class="badge soc-badge-{{ event.severity.lower() }}">{{ event.severity }}</span></td>
+                    <td class="text-end">
+                        <a href="/event/{{ event.id }}" class="btn btn-sm soc-btn-inspect">Inspect</a>
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="8" class="text-center text-secondary py-5">
+                        No events matched your query "<code>{{ query }}</code>".
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+
+{% endblock %}

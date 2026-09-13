@@ -1,0 +1,48 @@
+# SentinelSOC Simulated Malicious Security Activity Log
+# Contains simulated attack scenarios for threat detection verification
+
+# === Attack Scenario 1: Distributed SSH / Admin Brute Force ===
+2026-09-14 02:10:01 INFO SSH_CONNECTION ip=198.51.100.45 port=22 client_version=OpenSSH_8.4
+2026-09-14 02:10:04 INFO LOGIN_FAILED username=root ip=198.51.100.45 message=invalid_credentials
+2026-09-14 02:10:07 INFO LOGIN_FAILED username=root ip=198.51.100.45 message=invalid_credentials
+2026-09-14 02:10:10 INFO LOGIN_FAILED username=root ip=198.51.100.45 message=invalid_credentials
+2026-09-14 02:10:13 INFO LOGIN_FAILED username=root ip=198.51.100.45 message=invalid_credentials
+2026-09-14 02:10:16 INFO LOGIN_FAILED username=root ip=198.51.100.45 message=invalid_credentials
+2026-09-14 02:10:19 INFO LOGIN_FAILED username=root ip=198.51.100.45 message=invalid_credentials
+2026-09-14 02:10:22 INFO LOGIN_FAILED username=root ip=198.51.100.45 message=invalid_credentials
+2026-09-14 02:10:25 INFO ACCOUNT_LOCKED username=root ip=198.51.100.45 message=max_failed_attempts_exceeded
+
+# === Attack Scenario 2: Password Spraying Against Directory Accounts ===
+2026-09-14 03:22:10 INFO LOGIN_FAILED username=alex.turner ip=203.0.113.88 message=bad_password
+2026-09-14 03:22:25 INFO LOGIN_FAILED username=beth.wong ip=203.0.113.88 message=bad_password
+2026-09-14 03:22:40 INFO LOGIN_FAILED username=carlos.mendez ip=203.0.113.88 message=bad_password
+2026-09-14 03:22:55 INFO LOGIN_FAILED username=dana.scully ip=203.0.113.88 message=bad_password
+2026-09-14 03:23:10 INFO LOGIN_FAILED username=evan.wright ip=203.0.113.88 message=bad_password
+2026-09-14 03:23:25 INFO LOGIN_FAILED username=fiona.gallagher ip=203.0.113.88 message=bad_password
+
+# === Attack Scenario 3: Credential Stuffing / Successful Login After Failures ===
+2026-09-14 04:15:02 INFO LOGIN_FAILED username=devops_lead ip=192.168.99.20 message=auth_failure
+2026-09-14 04:15:08 INFO LOGIN_FAILED username=devops_lead ip=192.168.99.20 message=auth_failure
+2026-09-14 04:15:15 INFO LOGIN_FAILED username=devops_lead ip=192.168.99.20 message=auth_failure
+2026-09-14 04:15:21 INFO LOGIN_FAILED username=devops_lead ip=192.168.99.20 message=auth_failure
+2026-09-14 04:15:28 INFO LOGIN_SUCCESS username=devops_lead ip=192.168.99.20 message=session_authenticated_mfa_bypassed
+2026-09-14 04:16:05 INFO PRIVILEGE_ESCALATION username=devops_lead ip=192.168.99.20 message=sudo_su_root_executed
+
+# === Attack Scenario 4: User Enumeration Scan ===
+2026-09-14 05:40:01 INFO INVALID_USER username=adm ip=203.0.113.199 message=user_does_not_exist
+2026-09-14 05:40:03 INFO INVALID_USER username=backup ip=203.0.113.199 message=user_does_not_exist
+2026-09-14 05:40:05 INFO INVALID_USER username=deploy ip=203.0.113.199 message=user_does_not_exist
+2026-09-14 05:40:07 INFO INVALID_USER username=testuser ip=203.0.113.199 message=user_does_not_exist
+2026-09-14 05:40:09 INFO INVALID_USER username=guest_temp ip=203.0.113.199 message=user_does_not_exist
+2026-09-14 05:40:11 INFO INVALID_USER username=qa_automation ip=203.0.113.199 message=user_does_not_exist
+
+# === Attack Scenario 5: Repeated Access Denied & Privilege Violations ===
+2026-09-14 06:12:15 INFO SUSPICIOUS_REQUEST username=web_app ip=172.20.10.5 message=traversal_attempt_etc_passwd
+2026-09-14 06:12:18 INFO ACCESS_DENIED username=web_app ip=172.20.10.5 message=permission_denied_endpoint_admin_secrets
+2026-09-14 06:12:21 INFO ACCESS_DENIED username=web_app ip=172.20.10.5 message=forbidden_sql_dump_request
+2026-09-14 06:12:24 INFO ACCESS_DENIED username=web_app ip=172.20.10.5 message=unauthorized_token_access
+2026-09-14 06:12:27 INFO PRIVILEGE_ESCALATION username=web_app ip=172.20.10.5 message=kernel_exploit_probe
+
+# === Scenario 6: Unusual Off-Hours Logins ===
+2026-09-14 01:45:12 INFO LOGIN_SUCCESS username=cfo_finance ip=192.168.1.150 message=vpn_login_established
+2026-09-14 02:15:30 INFO LOGIN_SUCCESS username=intern_temp ip=10.10.50.25 message=terminal_opened

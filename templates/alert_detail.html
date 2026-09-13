@@ -1,0 +1,165 @@
+{% extends "base.html" %}
+
+{% block title %}Alert #{{ alert.id }} — SentinelSOC{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4 pb-2 border-bottom border-secondary-subtle">
+    <div class="d-flex align-items-center gap-3">
+        <a href="/alerts" class="btn btn-sm btn-outline-secondary">&larr; Back to Alerts</a>
+        <div>
+            <h3 class="soc-page-title mb-0">
+                Incident Triage: <span class="text-warning">{{ alert.threat_type.replace('_', ' ').title() }}</span>
+            </h3>
+            <span class="text-secondary small font-monospace">Alert ID: #{{ alert.id }} &bull; Detected: {{ alert.detection_timestamp.strftime('%Y-%m-%d %H:%M:%S UTC') if alert.detection_timestamp else '-' }}</span>
+        </div>
+    </div>
+    <div class="d-flex align-items-center gap-2">
+        <span class="badge soc-badge-{{ alert.severity.lower() }} px-3 py-2 fs-6">{{ alert.severity }}</span>
+        <span class="badge {% if alert.status == 'open' %}bg-danger-subtle text-danger{% elif alert.status == 'investigating' %}bg-warning-subtle text-warning{% else %}bg-success-subtle text-success{% endif %} px-3 py-2 fs-6">
+            {{ alert.status|upper }}
+        </span>
+    </div>
+</div>
+
+<div class="row g-4">
+    <!-- Main Column -->
+    <div class="col-lg-8">
+        <!-- Threat Reason & Forensic Evidence -->
+        <div class="card soc-card mb-4 border-start border-4 {% if alert.risk_score >= 80 %}border-danger{% elif alert.risk_score >= 60 %}border-warning{% elif alert.risk_score >= 30 %}border-info{% else %}border-secondary{% endif %}">
+            <div class="card-header soc-card-header">
+                <span class="card-header-title">🛡️ Detection Reason & Behavioral Evidence</span>
+            </div>
+            <div class="card-body">
+                <p class="fs-6 text-light mb-3">{{ alert.reason }}</p>
+
+                <div class="row g-3 text-secondary small pt-2 border-top border-secondary-subtle">
+                    <div class="col-md-4">
+                        <span class="d-block text-muted">Offending IP</span>
+                        <span class="badge font-monospace soc-ip-badge fs-6 mt-1">{{ alert.source_ip or 'unknown' }}</span>
+                    </div>
+                    <div class="col-md-4">
+                        <span class="d-block text-muted">Targeted User(s)</span>
+                        <strong class="text-light d-block mt-1">{{ alert.affected_users or 'System/Unspecified' }}</strong>
+                    </div>
+                    <div class="col-md-4">
+                        <span class="d-block text-muted">Assigned Risk Score</span>
+                        <strong class="fs-5 {% if alert.risk_score >= 80 %}text-danger{% elif alert.risk_score >= 60 %}text-warning{% else %}text-info{% endif %}">
+                            {{ alert.risk_score }} / 100
+                        </strong>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Recommended Response Actions -->
+        <div class="card soc-card mb-4">
+            <div class="card-header soc-card-header">
+                <span class="card-header-title">⚡ Incident Response Playbook & Recommendation</span>
+            </div>
+            <div class="card-body">
+                <div class="soc-recommendation-box p-3 rounded">
+                    <h6 class="text-warning fw-bold mb-2">Recommended Mitigation:</h6>
+                    <p class="text-light mb-0">{{ alert.recommended_action }}</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Investigation Notes -->
+        <div class="card soc-card mb-4">
+            <div class="card-header soc-card-header">
+                <span class="card-header-title">📝 Analyst Investigation Notes</span>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <textarea class="form-control soc-input font-monospace" id="analystNotes" rows="4" 
+                              placeholder="Document analyst observations, quarantine steps, or false-positive analysis...">{{ alert.investigation_notes or '' }}</textarea>
+                </div>
+                <button type="button" class="btn btn-primary soc-btn-primary" onclick="saveAnalystNotes({{ alert.id }})">
+                    💾 Save Investigation Notes
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Right Column: Status & Quick Controls -->
+    <div class="col-lg-4">
+        <!-- Triage Status Actions -->
+        <div class="card soc-card mb-4">
+            <div class="card-header soc-card-header">
+                <span class="card-header-title">🎯 Triage Status Controls</span>
+            </div>
+            <div class="card-body d-flex flex-column gap-2">
+                <button class="btn btn-outline-danger w-100 {% if alert.status == 'open' %}active{% endif %}" 
+                        onclick="updateAlertStatus({{ alert.id }}, 'open')">
+                    Mark as OPEN (Unresolved)
+                </button>
+                <button class="btn btn-outline-warning w-100 {% if alert.status == 'investigating' %}active{% endif %}" 
+                        onclick="updateAlertStatus({{ alert.id }}, 'investigating')">
+                    Mark as INVESTIGATING
+                </button>
+                <button class="btn btn-outline-success w-100 {% if alert.status == 'resolved' %}active{% endif %}" 
+                        onclick="updateAlertStatus({{ alert.id }}, 'resolved')">
+                    Mark as RESOLVED
+                </button>
+            </div>
+        </div>
+
+        <!-- Telemetry Summary -->
+        <div class="card soc-card mb-4">
+            <div class="card-header soc-card-header">
+                <span class="card-header-title">📊 Alert Telemetry</span>
+            </div>
+            <div class="card-body small text-secondary">
+                <div class="mb-2 d-flex justify-content-between">
+                    <span>Severity Band:</span>
+                    <strong class="text-light">{{ alert.severity }}</strong>
+                </div>
+                <div class="mb-2 d-flex justify-content-between">
+                    <span>Parent Event ID:</span>
+                    <a href="/event/{{ alert.event_id }}" class="font-monospace text-info">#{{ alert.event_id }}</a>
+                </div>
+                <div class="mb-2 d-flex justify-content-between">
+                    <span>First Detected:</span>
+                    <span class="text-light font-monospace">{{ alert.detection_timestamp.strftime('%H:%M:%S UTC') if alert.detection_timestamp else '-' }}</span>
+                </div>
+                {% if alert.resolved_at %}
+                <div class="mb-2 d-flex justify-content-between">
+                    <span>Resolved At:</span>
+                    <span class="text-success font-monospace">{{ alert.resolved_at.strftime('%Y-%m-%d %H:%M') }}</span>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function updateAlertStatus(alertId, newStatus) {
+    fetch(`/api/alerts/${alertId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: newStatus })
+    })
+    .then(res => res.json())
+    .then(() => {
+        showToast(`Alert #${alertId} updated to ${newStatus.toUpperCase()}`, 'success');
+        setTimeout(() => location.reload(), 500);
+    })
+    .catch(err => showToast('Failed to update alert status', 'danger'));
+}
+
+function saveAnalystNotes(alertId) {
+    const notes = document.getElementById('analystNotes').value;
+    fetch(`/api/alerts/${alertId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ investigation_notes: notes })
+    })
+    .then(res => res.json())
+    .then(() => showToast('Analyst notes saved successfully.', 'success'))
+    .catch(err => showToast('Failed saving notes', 'danger'));
+}
+</script>
+{% endblock %}
